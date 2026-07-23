@@ -1,11 +1,114 @@
-# Web-Cli / Chrome Debugger
+# web-cli
 
-Retired repo. The one thing that came out of this work — an always-on
-**Chrome Debugger.app** that keeps the daily-driver Chrome reachable over the
-Chrome DevTools Protocol on `127.0.0.1:9222` — is now built and maintained
-entirely by the dotfiles bootstrap.
+A minimalist, agent-optimized CLI that drives the already-running Chrome over
+the Chrome DevTools Protocol (CDP) on `127.0.0.1:9222`. It exists to give an
+agent (or a shell script) four things the AppleScript-based `chrome-cli` could
+not: run JS in a page, read cookies including HttpOnly, read local/session
+storage, and — the marquee feature — **listen to a tab's network traffic live**
+to capture an authenticated request (e.g. log in, click "download statement",
+capture that request for saving or replay).
 
-See the `Chrome Debugger.app` section (2.5) of `~/.dotfiles/bootstrap.sh`. It
-builds the app bundle, seeds the relocated `Chrome-Debug` profile, hides the
-normal Chrome, and is idempotent (re-running repairs the app). Nothing
-operational lives here anymore.
+Output is Rich colored tables by default (like `tt` and the other CLIs). Pass
+`--json` for machine-readable output — JSON for one-shot commands, NDJSON for
+`listen`. Errors print as `error: ...` on stderr with a nonzero exit. No
+tracebacks ever reach the caller, so it composes cleanly in pipelines.
+
+## Install
+
+Installed on every machine by `~/.dotfiles/bootstrap.sh` as a git-pinned uv tool
+(`uv_git_tool web-cli web-cli Projects.Web-Cli`). For local development:
+
+```bash
+uv tool install --force .   # puts `web-cli` on PATH
+# or run without installing:
+uv run web-cli tabs
+```
+
+## Requirements
+
+The debug Chrome must be running — see [The debug Chrome dependency](#the-debug-chrome-dependency)
+below. If it isn't, every command exits `3` with a clear message.
+
+## Commands
+
+Tab selectors `-t/--target-id <id>` and `--url <substr>` go **after** the
+subcommand. With neither, commands act on the active (first) tab.
+
+Add `--json` to any command for machine-readable output.
+
+```bash
+web-cli tabs                          # table of page targets (list is an alias)
+web-cli tabs --json                   # [{id,title,url,active}]
+
+web-cli eval 'document.title'         # run JS, print the value
+web-cli eval -t 8C1B 'location.href'  # target by id (exact or unique prefix)
+web-cli eval --url github 'document.querySelector("h1").innerText'
+
+web-cli cookies                       # cookies for the active tab (incl. HttpOnly)
+web-cli cookies --url github          # cookies for the tab matching "github"
+web-cli cookies --all-tabs            # browser-wide cookie jar
+
+web-cli storage                       # local + session storage
+web-cli storage --type local          # just localStorage
+
+web-cli listen --duration 5           # colored live network log for 5s
+web-cli listen --json --duration 5    # NDJSON, one line per request
+web-cli listen                        # stream until Ctrl-C
+```
+
+### `listen` — network capture
+
+Attaches to a tab, enables the Network domain, and prints one JSON line per
+completed request. Each record carries the request URL/method, request headers
+(incl. `Cookie`/`Authorization`, merged from CDP's extra-info events), POST body,
+response status/headers, MIME type, and a best-effort response body.
+
+```bash
+# Bank-statement capture: start listening, then log in and click download.
+web-cli listen --url mybank --save-dir ./cap --curl
+#   -> the statement request captured with auth headers; body written to ./cap/;
+#      each record includes a replayable `curl ...` you can run outside Chrome.
+
+# Flags:
+#   --duration N     stop after N seconds (default: until Ctrl-C)
+#   --match SUBSTR   only requests whose URL contains SUBSTR
+#   --method GET     only this HTTP method
+#   --type XHR       only this CDP resourceType (Document, Script, XHR, Fetch, ...)
+#   --save-dir DIR   write response bodies to DIR (respects the filters above)
+#   --reload         reload the tab first (capture a full page load)
+#   --curl           add a replayable curl string to each record
+```
+
+Note: `listen` only sees requests that happen **after** it attaches — start it
+before triggering the action you want to capture. True browser downloads that
+stream straight to disk expose no retrievable body via CDP; the record still
+captures the full request + headers, and `--curl` reproduces the download.
+
+## Exit codes
+
+`0` ok, `1` command error (e.g. a JS exception), `3` Chrome unreachable,
+`4` no matching tab.
+
+## The debug Chrome dependency
+
+`web-cli` talks to the real Chrome (real profile, real logins) over CDP. That is
+provided by a small launcher app, NOT by anything in this repo:
+
+- **App:** `/Applications/Chrome.app` (displayed as just "Chrome"; the real
+  browser is `Google Chrome.app`, kept hidden). Bundle id
+  `com.isak.chrome-debugger`.
+- **What it does:** execs Google Chrome with `--remote-debugging-port=9222`
+  against a relocated `Chrome-Debug` profile, exposing CDP on `127.0.0.1:9222`.
+  It execs (does not wrap) Chrome, so Chrome's code signature stays intact and
+  Keychain is not broken.
+- **Why a relocated profile:** since Chrome 136 the browser silently ignores
+  `--remote-debugging-port` on the default user-data-dir (verified on Chrome
+  150/152), so a separate `Chrome-Debug` profile is used. Chrome Sync keeps it
+  current after the one-time seed from the real profile.
+- **Default browser:** the app declares itself an http/https handler and is set
+  as the default browser, so every clicked link and cold start lands on the
+  debug profile at :9222.
+
+Built and owned end to end by the `Chrome.app` section (2.5) of
+`~/.dotfiles/bootstrap.sh` (idempotent — re-running repairs the app). To revert:
+`chflags nohidden "/Applications/Google Chrome.app"`, then re-run bootstrap.
