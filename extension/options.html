@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Web-Cli options</title>
+    <style>
+      body { font: 14px -apple-system, system-ui, sans-serif; margin: 24px; max-width: 420px; }
+      label { display: block; margin-bottom: 6px; font-weight: 600; }
+      input { font: inherit; padding: 6px 8px; width: 120px; }
+      button { font: inherit; padding: 6px 14px; margin-left: 8px; }
+      p { color: #555; }
+      .saved { color: #00aa77; font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <label for="port">Local web-cli server port</label>
+    <input id="port" type="number" min="1" max="65535" />
+    <button id="save">Save</button>
+    <span id="status"></span>
+    <p>Must match the port <code>web-cli listen</code> is running on (default 9333).</p>
+    <script src="options.js"></script>
+  </body>
+</html>

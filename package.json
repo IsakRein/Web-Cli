@@ -1,0 +1,10 @@
+{
+  "name": "web-cli",
+  "version": "0.1.0",
+  "description": "Stream all Chrome network requests to your terminal via a webRequest extension - no relaunch, no debug port.",
+  "bin": {
+    "web-cli": "bin/web-cli.js"
+  },
+  "type": "commonjs",
+  "license": "MIT"
+}
