@@ -42,6 +42,46 @@ def _http_get(path, timeout=1.5):
         return json.loads(resp.read().decode("utf-8"))
 
 
+def _http_req(path, method="GET", timeout=5):
+    """Hit a /json control endpoint; return parsed JSON when the body is JSON."""
+    req = urllib.request.Request(BASE + path, method=method)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        body = resp.read().decode("utf-8")
+    try:
+        return json.loads(body)
+    except ValueError:
+        return body
+
+
+async def new_target(conn, url):
+    """Open a new tab at `url` and return its normalized target dict."""
+    if conn.mode == MODE_HTTP:
+        # Newer Chrome requires PUT for /json/new; everything after '?' is the URL.
+        return _norm(_http_req(f"/json/new?{url}", method="PUT"))
+
+    from .cdp import CDPSession
+
+    async with CDPSession.connect(conn.browser_ws) as session:
+        res = await session.send("Target.createTarget", {"url": url})
+    tid = res["targetId"]
+    for t in await list_targets(conn):
+        if t["id"] == tid:
+            return t
+    return {"id": tid, "title": "", "url": url, "webSocketDebuggerUrl": None}
+
+
+async def close_target(conn, target_id):
+    """Close the tab with the given target id."""
+    if conn.mode == MODE_HTTP:
+        _http_req(f"/json/close/{target_id}")
+        return
+
+    from .cdp import CDPSession
+
+    async with CDPSession.connect(conn.browser_ws) as session:
+        await session.send("Target.closeTarget", {"targetId": target_id})
+
+
 def find_browser():
     """Resolve how to reach Chrome. HTTP first, DevToolsActivePort file as fallback."""
     try:

@@ -55,6 +55,7 @@ async def run(args, conn):
 
 
 async def _drain(session, sid, args, save_dir, inflight):
+    emitted = 0
     async for msg in session.events():
         method = msg.get("method")
         p = msg.get("params", {})
@@ -100,6 +101,9 @@ async def _drain(session, sid, args, save_dir, inflight):
                 rec["post_data"] = await _post_data(session, sid, rid)
             await _attach_body(session, sid, rid, rec, save_dir)
             _emit(rec, args)
+            emitted += 1
+            if args.first and emitted >= args.first:
+                return
 
         elif method == "Network.loadingFailed":
             rec = inflight.pop(rid, None)
@@ -107,6 +111,9 @@ async def _drain(session, sid, args, save_dir, inflight):
                 continue
             rec["failed"] = p.get("errorText", "failed")
             _emit(rec, args)
+            emitted += 1
+            if args.first and emitted >= args.first:
+                return
 
 
 def _new_rec(rid):

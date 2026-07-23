@@ -12,7 +12,7 @@ import websockets
 
 from . import __version__
 from .cdp import CDPError
-from .commands import cookies, eval_js, listen, storage, tabs
+from .commands import cookies, eval_js, listen, navigate, storage, tabs
 from .discovery import find_browser
 from .help import RichHelp, RichParser, print_main_help
 from .output import Die, report
@@ -51,8 +51,19 @@ def _build_parser():
 
     command("tabs", tabs.run, "list page targets (tabs)", [fmt], aliases=["list"])
 
+    p = command("open", navigate.open_run, "open a new tab at a URL", [fmt])
+    p.add_argument("address", metavar="url", help="URL to open in a new tab")
+
+    p = command("nav", navigate.nav_run, "navigate a tab to a URL and wait for load", [fmt, sel])
+    p.add_argument("address", metavar="url", help="URL to navigate the tab to")
+    p.add_argument("--no-wait", action="store_true", help="don't wait for the load event")
+    p.add_argument("--timeout", type=float, default=30, help="max seconds to wait for load (default: 30)")
+
+    p = command("close", navigate.close_run, "close a tab", [fmt, sel])
+
     p = command("eval", eval_js.run, "run JS in a tab, print the result", [fmt, sel])
     p.add_argument("js", help="JavaScript expression; its value is returned")
+    p.add_argument("--timeout", type=float, default=30, help="max seconds to await the result (default: 30)")
 
     p = command("cookies", cookies.run, "read cookies incl. HttpOnly", [fmt, sel])
     p.add_argument("--all-tabs", action="store_true", help="browser-wide cookie jar")
@@ -63,6 +74,7 @@ def _build_parser():
 
     p = command("listen", listen.run, "stream a tab's network requests live", [fmt, sel])
     p.add_argument("--duration", type=float, help="stop after N seconds (default: until Ctrl-C)")
+    p.add_argument("--first", type=int, help="stop after N matching requests (one-shot capture)")
     p.add_argument("--match", help="only requests whose URL contains this substring")
     p.add_argument("--method", help="only requests with this HTTP method")
     p.add_argument("--type", dest="type", help="only this resourceType (xhr, fetch, document, ...)")

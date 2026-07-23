@@ -17,6 +17,7 @@ async def run(args, conn):
                 "userGesture": True,
             },
             session_id=sid,
+            timeout=args.timeout,
         )
 
     if "exceptionDetails" in res:
