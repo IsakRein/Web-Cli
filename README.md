@@ -1,71 +1,128 @@
-# web-cli
+# Chrome Debugger - always-on CDP against your daily-driver Chrome
 
-Stream **every network request** from your normal, already-running Chrome to your
-terminal - no relaunch, no `--remote-debugging-port`, no throwaway "debug"
-profile. A Manifest V3 extension captures requests via `chrome.webRequest` and
-POSTs them to a tiny local Node server that prints the live log.
+A setup that makes your everyday Chrome permanently reachable over the Chrome
+DevTools Protocol (CDP) on `127.0.0.1:9222`, so any local tool can read and
+drive it using your real profile and logins.
 
-## What it can and can't see
+You launch Chrome through a small **Chrome Debugger.app** instead of the normal
+Chrome icon. It looks and behaves like Chrome, but always adds the debug flags.
+This repo holds what you need to rebuild and keep that app running:
+`launcher.sh` (the app's executable) and this doc.
 
-Captured: URL, method, resource type, status, request + response headers
-(including `Cookie` / `Authorization` via `extraHeaders`), timing, cache/IP,
-errors, and the **request** body (form data and raw payloads).
+## Why this is needed (the Chrome 136+ gotcha)
 
-Not captured: **response bodies**. `chrome.webRequest` is observation-only and
-never exposes response payloads, in any manifest version - it's built around the
-request lifecycle, not the bytes. To read a response body you either:
+Since **Chrome 136** (May 2025), Chrome **silently ignores
+`--remote-debugging-port` when it runs against the default user-data-dir.** The
+flag is accepted on the command line but no debug socket is ever opened. This
+was verified empirically on Chrome 150/152: even passing `--user-data-dir`
+pointed at the *real default path* still opens no port - Chrome compares the
+resolved dir against the default and refuses.
 
-- **replay the request** - `--curl` prints a ready-to-run curl per request with
-  the captured headers/body. Solid for `GET`s (idempotent, and auth replays as
-  you). Caveats: re-running non-idempotent methods repeats their side effects;
-  single-use/signed/time-boxed requests may be expired; the body can drift from
-  what was logged; and bot-protection (Cloudflare/Akamai) fingerprints TLS/HTTP2,
-  so plain curl may get challenged.
-- or use a `chrome.debugger` capture mode (CDP `Network.getResponseBody`) - not
-  built yet; the clean upgrade when you need true bodies with no replay.
+The fix is mandatory: run against a **relocated, non-default profile
+directory**. Here that dir is:
 
-## Setup (one time)
+    ~/Library/Application Support/Google/Chrome-Debug
 
-1. Load the extension:
-   - `chrome://extensions` -> enable **Developer mode** -> **Load unpacked**
-   - select the folder printed by `web-cli path`
-2. (optional) `npm link` or add `bin/web-cli.js` to your PATH as `web-cli`.
-   Otherwise run it as `node bin/web-cli.js ...`.
+It was created as a one-time copy of the real profile
+(`~/Library/Application Support/Google/Chrome`), so all logins, extensions,
+bookmarks, and history carried over. Chrome Sync keeps it current with the
+Google account. The original default profile is left untouched as a frozen
+backup.
 
-## Use
+## Components
 
-```bash
-web-cli listen                 # start server, print live log
-web-cli listen --curl          # also print a replayable curl under each request
-web-cli listen --json          # NDJSON output (pipe to jq / a file)
-web-cli listen --type xmlhttprequest --url /api/   # filter
+- **/Applications/Chrome Debugger.app** - a minimal app bundle whose executable
+  is a bash script that `exec`s Chrome (`launcher.sh`). Because it uses `exec`,
+  the app process is *replaced by* Chrome, so it stays a single app - no extra
+  launcher process hanging around. It is not a wrapper of Chrome.app, so
+  Chrome's code signature stays intact (no Keychain breakage).
+
+### What the app runs (`launcher.sh`)
+
+    exec arch -arm64 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+      --remote-debugging-port=9222 \
+      --user-data-dir="$HOME/Library/Application Support/Google/Chrome-Debug" \
+      "$@"
+
+`arch -arm64` forces the native arm64 binary - a bash-launched Chrome can
+otherwise wrongly select the x86_64 slice and run under Rosetta.
+
+## Build the app from scratch
+
+```sh
+# 1. Relocate the profile (quit Chrome first for a clean copy)
+osascript -e 'quit app "Google Chrome"'
+ditto "$HOME/Library/Application Support/Google/Chrome" \
+      "$HOME/Library/Application Support/Google/Chrome-Debug"
+
+# 2. Compile the AppleScript launcher into an app bundle
+osacompile -o "/Applications/Chrome Debugger.app" ChromeDebugger.applescript
+
+# 3. Make it registerable as a browser: add a bundle id + http/https handlers
+P="/Applications/Chrome Debugger.app/Contents/Info.plist"
+PB=/usr/libexec/PlistBuddy
+$PB -c "Add :CFBundleIdentifier string com.isak.chrome-debugger" "$P"
+$PB -c "Add :CFBundleURLTypes array" "$P"
+$PB -c "Add :CFBundleURLTypes:0 dict" "$P"
+$PB -c "Add :CFBundleURLTypes:0:CFBundleURLName string 'Web browser'" "$P"
+$PB -c "Add :CFBundleURLTypes:0:CFBundleTypeRole string Viewer" "$P"
+$PB -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" "$P"
+$PB -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string http" "$P"
+$PB -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:1 string https" "$P"
+
+# 4. Give it Chrome's icon, re-sign (editing invalidated the signature), register
+cp "/Applications/Google Chrome.app/Contents/Resources/app.icns" \
+   "/Applications/Chrome Debugger.app/Contents/Resources/droplet.icns"
+codesign --force -s - "/Applications/Chrome Debugger.app"
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+   -f "/Applications/Chrome Debugger.app"
 ```
 
-Then click the extension's toolbar button so its badge reads **ON**, and browse.
-Turn it **OFF** with the same button when done.
+## Make it the only Chrome you use
 
-### listen options
+Two steps are gated by macOS and must be done by hand (one click each):
 
-| flag | meaning |
-|---|---|
-| `--port N` | server port (default 9333; must match the extension's Options page) |
-| `--curl` | print a ready-to-run curl under each request |
-| `--json` | raw NDJSON instead of pretty lines |
-| `--out FILE` | also append every record as NDJSON to FILE |
-| `--type T` | filter by resource type (`xmlhttprequest`, `script`, `image`, `main_frame`, ...) |
-| `--method M` | filter by HTTP method |
-| `--url SUBSTR` | filter by URL substring (case-insensitive) |
-| `--tab ID` | filter by Chrome tab id |
-| `--no-color` | disable ANSI colors |
+1. **Default browser:** System Settings > Desktop & Dock > Default web browser
+   -> choose **Chrome Debugger**. Links from other apps then open in the debug
+   profile.
+2. **Dock:** drag Google Chrome out of the Dock, drag Chrome Debugger in.
 
-If you change `--port`, set the same port in the extension's Options page
-(`chrome://extensions` -> web-cli -> Details -> Extension options).
+To push the normal Chrome further out of sight (reversible):
 
-## How it fits together
-
+```sh
+chflags hidden "/Applications/Google Chrome.app"   # hide from Finder
+chflags nohidden "/Applications/Google Chrome.app" # undo
 ```
-Chrome (your normal profile)
-  └─ extension/ (webRequest listeners, toggled by toolbar button)
-        └─ POST batches ──> http://127.0.0.1:<port>/ingest
-                                └─ bin/web-cli.js  (prints / filters / --curl / --json)
+
+The app still launches Chrome fine while hidden - it execs the binary by full
+path, which works regardless of the hidden flag. Chrome auto-updates normally;
+the binary path stays constant across updates.
+
+## Verify it's reachable
+
+```sh
+curl http://127.0.0.1:9222/json/version   # browser + protocol version
+curl http://127.0.0.1:9222/json           # list all targets (tabs)
 ```
+
+Any CDP client can then connect over `127.0.0.1:9222`.
+
+## Troubleshooting
+
+- **Port 9222 not responding:** make sure Chrome was launched via Chrome
+  Debugger.app (not the normal icon), and that only one instance is running -
+  two Chrome instances can't both bind 9222.
+- **No page target / scripts error:** the only open tab may be a `chrome://`
+  page (profile picker, new tab). Open a normal page first.
+- **Wrong profile / missing logins:** confirm the running process shows
+  `--user-data-dir=.../Chrome-Debug` (`ps aux | grep user-data-dir`). If it
+  shows the default dir, you launched the wrong Chrome.
+- **First launch is blocked by Gatekeeper:** the app is locally built and
+  ad-hoc signed - right-click > Open once to approve.
+
+## Security note
+
+CDP on `127.0.0.1:9222` grants full read/control over this Chrome, including any
+site you are logged into and its auth cookies. It is loopback-only (not exposed
+to the network), but any local process can connect. Be deliberate about what you
+have tools pull from authenticated sessions.
