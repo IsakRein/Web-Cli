@@ -53,16 +53,29 @@ def _http_req(path, method="GET", timeout=5):
         return body
 
 
-async def new_target(conn, url):
-    """Open a new tab at `url` and return its normalized target dict."""
-    if conn.mode == MODE_HTTP:
-        # Newer Chrome requires PUT for /json/new; everything after '?' is the URL.
-        return _norm(_http_req(f"/json/new?{url}", method="PUT"))
+def _browser_ws_url(conn):
+    """The browser-level websocket URL, discovered over HTTP when not already known."""
+    if conn.mode == MODE_BROWSER_WS:
+        return conn.browser_ws
+    try:
+        return _http_get("/json/version")["webSocketDebuggerUrl"]
+    except (urllib.error.URLError, OSError, ValueError, KeyError):
+        die(_UNREACHABLE, code=3)
 
+
+async def new_target(conn, url, background=True):
+    """Open a new tab at `url` and return its normalized target dict.
+
+    Goes through Target.createTarget rather than the /json/new HTTP endpoint
+    because only createTarget can open the tab in the background — /json/new
+    always focuses it, which would interrupt whoever is using the browser.
+    """
     from .cdp import CDPSession
 
-    async with CDPSession.connect(conn.browser_ws) as session:
-        res = await session.send("Target.createTarget", {"url": url})
+    async with CDPSession.connect(_browser_ws_url(conn)) as session:
+        res = await session.send(
+            "Target.createTarget", {"url": url, "background": background}
+        )
     tid = res["targetId"]
     for t in await list_targets(conn):
         if t["id"] == tid:

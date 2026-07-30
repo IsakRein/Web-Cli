@@ -40,6 +40,11 @@ Add `--json` to any command for machine-readable output.
 web-cli tabs                          # table of page targets (list is an alias)
 web-cli tabs --json                   # [{id,title,url,active}]
 
+web-cli open https://example.com      # new BACKGROUND tab; prints {id,url} to target next
+web-cli open --foreground https://example.com   # focus the new tab (interrupts the user)
+web-cli nav https://example.com --url old       # navigate the matching tab, wait for load
+web-cli close --url example           # close the matching tab
+
 web-cli eval 'document.title'         # run JS, print the value
 web-cli eval -t 8C1B 'location.href'  # target by id (exact or unique prefix)
 web-cli eval --url github 'document.querySelector("h1").innerText'

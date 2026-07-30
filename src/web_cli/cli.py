@@ -51,8 +51,10 @@ def _build_parser():
 
     command("tabs", tabs.run, "list page targets (tabs)", [fmt], aliases=["list"])
 
-    p = command("open", navigate.open_run, "open a new tab at a URL", [fmt])
+    p = command("open", navigate.open_run, "open a new tab at a URL (backgrounded)", [fmt])
     p.add_argument("address", metavar="url", help="URL to open in a new tab")
+    p.add_argument("--foreground", action="store_true",
+                   help="focus the new tab (default opens it in the background)")
 
     p = command("nav", navigate.nav_run, "navigate a tab to a URL and wait for load", [fmt, sel])
     p.add_argument("address", metavar="url", help="URL to navigate the tab to")

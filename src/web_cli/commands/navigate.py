@@ -1,6 +1,8 @@
 """Open, navigate, and close tabs.
 
 `open`  — new tab at a URL (prints its id, so scripts can target it next).
+          Background by default so automation never steals the user's focus;
+          --foreground opts back into focusing it.
 `nav`   — point an existing tab at a URL and wait for load.
 `close` — close a tab.
 """
@@ -21,7 +23,7 @@ def _report(target, args):
 
 
 async def open_run(args, conn):
-    _report(await new_target(conn, args.address), args)
+    _report(await new_target(conn, args.address, background=not args.foreground), args)
 
 
 async def nav_run(args, conn):

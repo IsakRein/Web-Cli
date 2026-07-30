@@ -1,6 +1,8 @@
 """List page targets (tabs). Rich table by default, JSON with --json.
 
-First entry is the default/active selection.
+First entry is the default selection (marked "active"). Chrome orders the list
+by target MRU, not window focus — a tab just created by `open` sits first even
+though it opened in the background and the user's focused tab didn't change.
 """
 
 from rich import box
