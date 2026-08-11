@@ -12,7 +12,7 @@ import websockets
 
 from . import __version__
 from .cdp import CDPError
-from .commands import cookies, eval_js, listen, navigate, storage, tabs
+from .commands import cookies, eval_js, listen, navigate, record, screenshot, storage, tabs
 from .discovery import find_browser
 from .help import RichHelp, RichParser, print_main_help
 from .output import Die, report
@@ -66,6 +66,24 @@ def _build_parser():
     p = command("eval", eval_js.run, "run JS in a tab, print the result", [fmt, sel])
     p.add_argument("js", help="JavaScript expression; its value is returned")
     p.add_argument("--timeout", type=float, default=30, help="max seconds to await the result (default: 30)")
+
+    p = command("screenshot", screenshot.run, "capture a tab as a PNG", [fmt, sel], aliases=["shot"])
+    p.add_argument("output", nargs="?", help="output .png path (default: web-cli-<tab>-<time>.png)")
+    p.add_argument("--full-page", action="store_true",
+                   help="capture the whole page, not just the viewport (also rasters occluded tabs)")
+    p.add_argument("--activate", action="store_true",
+                   help="focus the tab before capturing (escape hatch for blank occluded captures)")
+    p.add_argument("--timeout", type=float, default=30, help="max seconds to wait for the capture (default: 30)")
+
+    p = command("record", record.run, "record a tab to MP4 (CDP screencast)", [fmt, sel])
+    p.add_argument("output", nargs="?", help="output .mp4 path (default: web-cli-<tab>.mp4)")
+    p.add_argument("--duration", type=float, default=10, help="seconds to record (default: 10)")
+    p.add_argument("--quality", type=int, default=80, help="JPEG quality of the frames (default: 80)")
+    p.add_argument("--max-width", type=int, default=1280,
+                   help="bound the frame size; Chrome scales to fit (default: 1280)")
+    p.add_argument("--activate", action="store_true",
+                   help="focus the tab for the recording (occluded tabs are throttled and may send no frames)")
+    p.add_argument("--keep-frames", action="store_true", help="keep the raw frame directory too")
 
     p = command("cookies", cookies.run, "read cookies incl. HttpOnly", [fmt, sel])
     p.add_argument("--all-tabs", action="store_true", help="browser-wide cookie jar")

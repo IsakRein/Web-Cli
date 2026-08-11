@@ -49,6 +49,14 @@ web-cli eval 'document.title'         # run JS, print the value
 web-cli eval -t 8C1B 'location.href'  # target by id (exact or unique prefix)
 web-cli eval --url github 'document.querySelector("h1").innerText'
 
+web-cli screenshot page.png           # capture the active tab (shot is an alias)
+web-cli screenshot --url localhost --full-page page.png   # whole page; also rasters occluded tabs
+web-cli screenshot --activate page.png                    # focus first: escape hatch for blank captures
+
+web-cli record demo.mp4 --duration 10 # record a tab (needs ffmpeg on PATH to assemble;
+                                      # without it the frames + assemble command are kept)
+web-cli record --activate demo.mp4    # occluded tabs are throttled and may send no frames
+
 web-cli cookies                       # cookies for the active tab (incl. HttpOnly)
 web-cli cookies --url github          # cookies for the tab matching "github"
 web-cli cookies --all-tabs            # browser-wide cookie jar
