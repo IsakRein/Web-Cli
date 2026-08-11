@@ -8,6 +8,7 @@ first as the escape hatch — the one command in this CLI allowed to grab focus,
 and only on request.
 """
 
+import asyncio
 import base64
 from datetime import datetime
 from pathlib import Path
@@ -33,6 +34,10 @@ async def run(args, conn):
             await session.send(
                 "Target.activateTarget", {"targetId": target["id"]}, session_id=sid
             )
+            # A capture fired in the same beat as activation races the first
+            # raster and dies with "Internal error"; give the compositor a
+            # moment to paint the newly visible tab.
+            await asyncio.sleep(0.5)
         try:
             res = await session.send(
                 "Page.captureScreenshot",
