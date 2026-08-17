@@ -4,14 +4,19 @@ Primary path: the CDP HTTP endpoints (`/json/version`, `/json`) exposed on
 127.0.0.1:9222 by the always-on debug Chrome. Fallback: read the browser
 websocket path from the profile's `DevToolsActivePort` file (line 2) if the HTTP
 endpoints are ever unavailable, and drive targets through the browser socket.
+If Chrome isn't running at all, launch /Applications/Chrome.app (without
+stealing focus) and wait for the CDP endpoint to come up.
 """
 
 import json
 import os
+import socket
+import subprocess
+import time
 import urllib.error
 import urllib.request
 
-from .output import die
+from .output import die, err_console
 
 HOST = "127.0.0.1"
 PORT = 9222
@@ -19,6 +24,8 @@ BASE = f"http://{HOST}:{PORT}"
 PORTFILE = os.path.expanduser(
     "~/Library/Application Support/Google/Chrome-Debug/DevToolsActivePort"
 )
+APP = "/Applications/Chrome.app"
+LAUNCH_WAIT = 20  # seconds to wait for CDP after launching the app
 
 MODE_HTTP = "http"
 MODE_BROWSER_WS = "browser_ws"
@@ -95,8 +102,8 @@ async def close_target(conn, target_id):
         await session.send("Target.closeTarget", {"targetId": target_id})
 
 
-def find_browser():
-    """Resolve how to reach Chrome. HTTP first, DevToolsActivePort file as fallback."""
+def _try_connect():
+    """One connection attempt: HTTP first, DevToolsActivePort file as fallback."""
     try:
         _http_get("/json/version")
         return BrowserConn(MODE_HTTP)
@@ -108,9 +115,48 @@ def find_browser():
             lines = f.read().splitlines()
         port = int(lines[0].strip())
         path = lines[1].strip()  # e.g. /devtools/browser/<uuid>
+        # Chrome doesn't always clean this file up on shutdown; only trust it
+        # if something is actually listening on the port.
+        with socket.create_connection((HOST, port), timeout=1):
+            pass
         return BrowserConn(MODE_BROWSER_WS, browser_ws=f"ws://{HOST}:{port}{path}")
     except (OSError, IndexError, ValueError):
-        die(_UNREACHABLE, code=3)
+        return None
+
+
+def find_browser():
+    """Resolve how to reach Chrome, launching the debug Chrome if it isn't running."""
+    conn = _try_connect()
+    if conn:
+        return conn
+
+    if not os.path.exists(APP):
+        die(
+            f"Chrome debug endpoint not reachable at {HOST}:{PORT} and {APP} "
+            "does not exist (build it with ~/.dotfiles/bootstrap.sh).",
+            code=3,
+        )
+
+    err_console.print(f"[dim]debug Chrome not running; launching {APP} ...[/dim]")
+    try:
+        # -g keeps the app from stealing focus from whatever the user is doing.
+        subprocess.run(["open", "-g", "-a", APP], check=True, capture_output=True)
+    except (OSError, subprocess.CalledProcessError) as e:
+        detail = getattr(e, "stderr", b"") or b""
+        die(f"Failed to launch {APP}: {detail.decode().strip() or e}", code=3)
+
+    deadline = time.monotonic() + LAUNCH_WAIT
+    while time.monotonic() < deadline:
+        try:
+            _http_get("/json/version", timeout=1)
+            return BrowserConn(MODE_HTTP)
+        except (urllib.error.URLError, OSError, ValueError):
+            time.sleep(0.25)
+    die(
+        f"Launched {APP} but the CDP endpoint at {HOST}:{PORT} did not come up "
+        f"within {LAUNCH_WAIT}s.",
+        code=3,
+    )
 
 
 async def list_targets(conn):

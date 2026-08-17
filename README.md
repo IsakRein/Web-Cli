@@ -1,7 +1,7 @@
 # web-cli
 
-A minimalist, agent-optimized CLI that drives the already-running Chrome over
-the Chrome DevTools Protocol (CDP) on `127.0.0.1:9222`. It exists to give an
+A minimalist, agent-optimized CLI that drives the local debug Chrome (launching
+it if needed) over the Chrome DevTools Protocol (CDP) on `127.0.0.1:9222`. It exists to give an
 agent (or a shell script) four things the AppleScript-based `chrome-cli` could
 not: run JS in a page, read cookies including HttpOnly, read local/session
 storage, and — the marquee feature — **listen to a tab's network traffic live**
@@ -26,8 +26,11 @@ uv run web-cli tabs
 
 ## Requirements
 
-The debug Chrome must be running — see [The debug Chrome dependency](#the-debug-chrome-dependency)
-below. If it isn't, every command exits `3` with a clear message.
+The debug Chrome — see [The debug Chrome dependency](#the-debug-chrome-dependency)
+below. It does not need to be running: if `:9222` is unreachable, every command
+launches `/Applications/Chrome.app` itself (via `open -g`, so it never steals
+focus) and waits up to 20s for CDP to come up. Exit `3` now means the launch
+failed: the app is missing (re-run bootstrap) or CDP never appeared.
 
 ## Commands
 
@@ -99,8 +102,8 @@ captures the full request + headers, and `--curl` reproduces the download.
 
 ## Exit codes
 
-`0` ok, `1` command error (e.g. a JS exception), `3` Chrome unreachable,
-`4` no matching tab.
+`0` ok, `1` command error (e.g. a JS exception), `3` Chrome unreachable (and
+auto-launching it failed), `4` no matching tab.
 
 ## The debug Chrome dependency
 
