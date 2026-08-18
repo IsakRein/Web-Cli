@@ -67,15 +67,10 @@ async def run(args, conn):
         await session.send("Page.enable", session_id=sid)
         await session.send("Page.startScreencast", cast_params, session_id=sid)
 
-        import os, sys, time  # TEMP DEBUG
-        _dbg = os.environ.get("WEB_CLI_DEBUG")  # TEMP DEBUG
-
         async def pump():
             with contextlib.suppress(CDPError):
                 async for msg in session.events():
                     method = msg.get("method")
-                    if _dbg:  # TEMP DEBUG
-                        print(f"{time.monotonic():.2f} {method}", file=sys.stderr)
                     if method == "Page.screencastFrame":
                         params = msg["params"]
                         frames.append(
