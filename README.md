@@ -59,6 +59,12 @@ web-cli screenshot --activate page.png                    # focus first: escape 
 web-cli record demo.mp4 --duration 10 # record a tab (needs ffmpeg on PATH to assemble;
                                       # without it the frames + assemble command are kept)
 web-cli record --activate demo.mp4    # occluded tabs are throttled and may send no frames
+web-cli record --activate --duration 60 --run 'demoScript()' demo.mp4
+                                      # drive the page while recording: the JS runs over the
+                                      # recording's own CDP session (promises awaited) and the
+                                      # recording stops ~1.5s after it settles. Use this instead
+                                      # of a concurrent `web-cli eval`, which stalls the frames.
+                                      # Recordings survive page navigations (screencast re-arms).
 
 web-cli cookies                       # cookies for the active tab (incl. HttpOnly)
 web-cli cookies --url github          # cookies for the tab matching "github"

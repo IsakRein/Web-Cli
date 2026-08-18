@@ -83,6 +83,10 @@ def _build_parser():
                    help="bound the frame size; Chrome scales to fit (default: 1280)")
     p.add_argument("--activate", action="store_true",
                    help="focus the tab for the recording (occluded tabs are throttled and may send no frames)")
+    p.add_argument("--run", metavar="JS",
+                   help="drive the page while recording: JS evaluated over the recording's own CDP session "
+                        "(promises awaited; a separate web-cli attaching mid-recording stalls the frames). "
+                        "Recording stops ~1.5s after it settles, still capped by --duration")
     p.add_argument("--keep-frames", action="store_true", help="keep the raw frame directory too")
 
     p = command("cookies", cookies.run, "read cookies incl. HttpOnly", [fmt, sel])
