@@ -65,6 +65,21 @@ web-cli record --activate --duration 60 --run 'demoScript()' demo.mp4
                                       # recording stops ~1.5s after it settles. Use this instead
                                       # of a concurrent `web-cli eval`, which stalls the frames.
                                       # Recordings survive page navigations (screencast re-arms).
+web-cli record --offscreen demo.mp4   # record a fully covered tab: forced-raster screenshots
+                                      # (~7fps) instead of the screencast, no focus needed
+web-cli record --offscreen --tick-js 'pump()' --run 'demo()' demo.mp4
+                                      # hidden tabs throttle their own timers to ~1Hz, so the
+                                      # choreography advances via --tick-js, evaluated before
+                                      # every captured frame (e.g. a pump resolving the demo
+                                      # script's pending sleeps from wall-clock time)
+
+web-cli mock rules.py                 # intercept the tab's network through a Python hook file:
+web-cli mock rules.py --duration 300  # rewrite API responses (on_response) or answer requests
+                                      # locally so the server never sees them (on_request) —
+                                      # demo/test a frontend against data the backend doesn't
+                                      # have. Locally answered responses reflect the request's
+                                      # Origin so cross-origin API calls pass CORS. See the
+                                      # module docstring in commands/mock.py for the contract.
 
 web-cli cookies                       # cookies for the active tab (incl. HttpOnly)
 web-cli cookies --url github          # cookies for the tab matching "github"

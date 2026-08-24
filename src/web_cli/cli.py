@@ -83,6 +83,12 @@ def _build_parser():
                    help="bound the frame size; Chrome scales to fit (default: 1280)")
     p.add_argument("--activate", action="store_true",
                    help="focus the tab for the recording (occluded tabs are throttled and may send no frames)")
+    p.add_argument("--offscreen", action="store_true",
+                   help="capture via forced-raster screenshots instead of the screencast, so a fully "
+                        "covered tab records fine (no focus needed; ~7fps)")
+    p.add_argument("--tick-js", metavar="JS",
+                   help="with --offscreen: evaluate this snippet before every captured frame (e.g. a pump "
+                        "advancing a --run choreography, since hidden tabs throttle their own timers)")
     p.add_argument("--run", metavar="JS",
                    help="drive the page while recording: JS evaluated over the recording's own CDP session "
                         "(promises awaited; a separate web-cli attaching mid-recording stalls the frames). "

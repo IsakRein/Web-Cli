@@ -10,6 +10,16 @@ Frames only arrive while Chrome rasters the tab, and an occluded tab is
 throttled hard -- record a tab someone is looking at, or pass --activate to
 focus it for the duration.
 
+--offscreen sidesteps the visibility problem entirely: instead of the
+screencast it polls Page.captureScreenshot with captureBeyondViewport (which
+forces Chrome to raster even a fully covered tab), clipped to the viewport, at
+a fixed cadence. Made for recording a demo without stealing the screen from
+whoever is using the machine. Hidden tabs still throttle the page's own timers
+to ~1Hz, so a --run choreography that sleeps on setTimeout crawls; pair it
+with --tick-js, a snippet evaluated before every captured frame (e.g. a pump
+that resolves the script's pending sleeps from wall-clock time) so the
+choreography advances at real speed no matter what the tab's timers do.
+
 Chrome silently drops the screencast on a cross-document navigation, so the
 event pump watches Page.frameNavigated and re-arms it -- a recording keeps
 rolling across page loads.
@@ -43,6 +53,9 @@ _RUN_TAIL = 1.5
 # died mid-await, but the point was to film the page it navigated to.
 _NAV_TAIL = 5.0
 
+# Capture cadence for --offscreen (seconds between screenshot polls).
+_OFFSCREEN_INTERVAL = 0.15
+
 
 async def run(args, conn):
     target = select_target(await list_targets(conn), args.target_id, args.url)
@@ -65,7 +78,9 @@ async def run(args, conn):
         # Screencast frames arrive without it, but Page.frameNavigated needs
         # the Page domain enabled.
         await session.send("Page.enable", session_id=sid)
-        await session.send("Page.startScreencast", cast_params, session_id=sid)
+
+        if not args.offscreen:
+            await session.send("Page.startScreencast", cast_params, session_id=sid)
 
         async def pump():
             with contextlib.suppress(CDPError):
@@ -94,7 +109,9 @@ async def run(args, conn):
                             "Page.startScreencast", cast_params, session_id=sid
                         )
 
-        pump_task = asyncio.create_task(pump())
+        pump_task = asyncio.create_task(
+            _poll(session, sid, args, frames) if args.offscreen else pump()
+        )
         loop = asyncio.get_running_loop()
         deadline = loop.time() + args.duration
         try:
@@ -108,8 +125,9 @@ async def run(args, conn):
             pump_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await pump_task
-            with contextlib.suppress(CDPError):
-                await session.send("Page.stopScreencast", session_id=sid)
+            if not args.offscreen:
+                with contextlib.suppress(CDPError):
+                    await session.send("Page.stopScreencast", session_id=sid)
 
     if not frames:
         die(
@@ -131,6 +149,43 @@ async def run(args, conn):
             console.print(f"--run script did not settle cleanly: {run_error}")
         if hint := row.get("hint"):
             console.print(hint)
+
+
+async def _poll(session, sid, args, frames):
+    """--offscreen capture loop: forced-raster screenshots on a fixed cadence.
+
+    captureBeyondViewport makes Chrome raster even a fully occluded tab; the
+    clip keeps the frame to the viewport instead of the full page height. The
+    optional --tick-js snippet is evaluated before every frame so a --run
+    choreography can be advanced from wall-clock time while the hidden tab's
+    own timers are throttled. Runs until cancelled.
+    """
+    loop = asyncio.get_running_loop()
+    res = await session.send(
+        "Runtime.evaluate",
+        {"expression": "[innerWidth, innerHeight]", "returnByValue": True},
+        session_id=sid,
+    )
+    width, height = (res.get("result", {}).get("value") or [1280, 800])[:2]
+    scale = min(1.0, args.max_width / max(width, 1))
+    shot_params = {
+        "format": "jpeg",
+        "quality": args.quality,
+        "captureBeyondViewport": True,
+        "clip": {"x": 0, "y": 0, "width": width, "height": height, "scale": scale},
+    }
+    while True:
+        started = loop.time()
+        if args.tick_js:
+            with contextlib.suppress(CDPError):
+                await session.send(
+                    "Runtime.evaluate", {"expression": args.tick_js}, session_id=sid
+                )
+        # Mid-navigation captures fail transiently; skip the frame, keep rolling.
+        with contextlib.suppress(CDPError):
+            shot = await session.send("Page.captureScreenshot", shot_params, session_id=sid)
+            frames.append((loop.time(), base64.b64decode(shot["data"])))
+        await asyncio.sleep(max(_OFFSCREEN_INTERVAL - (loop.time() - started), 0.01))
 
 
 async def _drive(session, sid, js, deadline):

@@ -129,6 +129,13 @@ async def _handle(session, sid, args, hook, p):
             return
         body, content_type = _encode_body(result.get("body"))
         headers = {"content-type": content_type, **(result.get("headers") or {})}
+        # A locally-answered response bypasses the server, so it carries no
+        # CORS headers; without them the browser blocks it for cross-origin
+        # API calls. Reflect the request's Origin unless the hook set its own.
+        origin = next((v for k, v in req.get("headers", {}).items() if k.lower() == "origin"), None)
+        if origin and not any(k.lower() == "access-control-allow-origin" for k in headers):
+            headers["access-control-allow-origin"] = origin
+            headers["access-control-allow-credentials"] = "true"
         await session.send(
             "Fetch.fulfillRequest",
             {
