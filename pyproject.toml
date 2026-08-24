@@ -1,6 +1,6 @@
 [project]
 name = "web-cli"
-version = "0.5.0"
+version = "0.6.0"
 description = "Minimalist agent-optimized CLI driving the running Chrome over CDP."
 requires-python = ">=3.11"
 dependencies = ["websockets>=13", "rich>=13"]

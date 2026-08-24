@@ -12,7 +12,7 @@ import websockets
 
 from . import __version__
 from .cdp import CDPError
-from .commands import cookies, eval_js, listen, navigate, record, screenshot, storage, tabs
+from .commands import cookies, eval_js, listen, mock, navigate, record, screenshot, storage, tabs
 from .discovery import find_browser
 from .help import RichHelp, RichParser, print_main_help
 from .output import Die, report
@@ -95,6 +95,11 @@ def _build_parser():
     p = command("storage", storage.run, "read local/session storage", [fmt, sel])
     p.add_argument("--type", choices=["local", "session", "all"], default="all",
                    help="which store to read (default: all)")
+
+    p = command("mock", mock.run, "intercept a tab's network via a Python hook file", [fmt, sel])
+    p.add_argument("hook", help="hook .py file defining on_request/on_response (see module docs)")
+    p.add_argument("--duration", type=float, help="stop after N seconds (default: until Ctrl-C)")
+    p.add_argument("--reload", action="store_true", help="reload the tab first, so page-load requests are intercepted too")
 
     p = command("listen", listen.run, "stream a tab's network requests live", [fmt, sel])
     p.add_argument("--duration", type=float, help="stop after N seconds (default: until Ctrl-C)")
