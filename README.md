@@ -81,6 +81,10 @@ web-cli mock rules.py --duration 300  # rewrite API responses (on_response) or a
                                       # Origin so cross-origin API calls pass CORS. See the
                                       # module docstring in commands/mock.py for the contract.
 
+web-cli upload video.mp4              # attach a local file to the page's input[type=file], as if
+                                      # picked: the page's own upload flow runs (change event fires)
+web-cli upload -s '#avatar' a.png     # pick the input by CSS selector, matched through shadow roots
+
 web-cli cookies                       # cookies for the active tab (incl. HttpOnly)
 web-cli cookies --url github          # cookies for the tab matching "github"
 web-cli cookies --all-tabs            # browser-wide cookie jar

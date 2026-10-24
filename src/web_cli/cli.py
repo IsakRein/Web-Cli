@@ -12,7 +12,7 @@ import websockets
 
 from . import __version__
 from .cdp import CDPError
-from .commands import cookies, eval_js, listen, mock, navigate, record, screenshot, storage, tabs
+from .commands import cookies, eval_js, listen, mock, navigate, record, screenshot, storage, tabs, upload
 from .discovery import find_browser
 from .help import RichHelp, RichParser, print_main_help
 from .output import Die, report
@@ -94,6 +94,12 @@ def _build_parser():
                         "(promises awaited; a separate web-cli attaching mid-recording stalls the frames). "
                         "Recording stops ~1.5s after it settles, still capped by --duration")
     p.add_argument("--keep-frames", action="store_true", help="keep the raw frame directory too")
+
+    p = command("upload", upload.run, "attach local files to a file input (as if picked)", [fmt, sel])
+    p.add_argument("files", nargs="+", help="file(s) to attach")
+    p.add_argument("--selector", "-s", default="input[type=file]",
+                   help="CSS selector for the input, matched through shadow roots too "
+                        "(default: input[type=file])")
 
     p = command("cookies", cookies.run, "read cookies incl. HttpOnly", [fmt, sel])
     p.add_argument("--all-tabs", action="store_true", help="browser-wide cookie jar")
