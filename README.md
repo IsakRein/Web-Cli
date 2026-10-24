@@ -258,4 +258,4 @@ auto-launch path in `discovery.py` points at it.
 
 ## License
 
-No license has been chosen yet; all rights reserved for now.
+[MIT](LICENSE)
