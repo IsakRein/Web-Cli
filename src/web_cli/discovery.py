@@ -6,6 +6,10 @@ websocket path from the profile's `DevToolsActivePort` file (line 2) if the HTTP
 endpoints are ever unavailable, and drive targets through the browser socket.
 If Chrome isn't running at all, launch /Applications/Chrome.app (without
 stealing focus) and wait for the CDP endpoint to come up.
+
+WEB_CLI_PORT points every command at another Chrome's debug port instead (e.g.
+a headless instance a script launched itself). That Chrome is the caller's to
+start: on a non-default port there is no profile-file fallback and no launch.
 """
 
 import json
@@ -19,7 +23,8 @@ import urllib.request
 from .output import die, err_console
 
 HOST = "127.0.0.1"
-PORT = 9222
+DEFAULT_PORT = 9222
+PORT = int(os.environ.get("WEB_CLI_PORT") or DEFAULT_PORT)
 BASE = f"http://{HOST}:{PORT}"
 PORTFILE = os.path.expanduser(
     "~/Library/Application Support/Google/Chrome-Debug/DevToolsActivePort"
@@ -110,6 +115,8 @@ def _try_connect():
     except (urllib.error.URLError, OSError, ValueError):
         pass
 
+    if PORT != DEFAULT_PORT:
+        return None  # PORTFILE belongs to the default debug Chrome
     try:
         with open(PORTFILE, "r") as f:
             lines = f.read().splitlines()
@@ -129,6 +136,10 @@ def find_browser():
     conn = _try_connect()
     if conn:
         return conn
+
+    if PORT != DEFAULT_PORT:
+        die(f"No Chrome debug endpoint at {HOST}:{PORT} (WEB_CLI_PORT); start that "
+            "Chrome first.", code=3)
 
     if not os.path.exists(APP):
         die(

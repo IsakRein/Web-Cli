@@ -1,6 +1,6 @@
 [project]
 name = "web-cli"
-version = "0.7.0"
+version = "0.8.0"
 description = "Minimalist agent-optimized CLI driving the running Chrome over CDP."
 license = "MIT"
 license-files = ["LICENSE"]

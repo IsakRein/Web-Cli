@@ -62,6 +62,10 @@ Sign in to Chrome Sync once in that profile and it fills in with your
 bookmarks, extensions and saved logins. Check it is up with
 `curl -s 127.0.0.1:9222/json/version`.
 
+To drive a different Chrome (say a headless one a script started with
+`--remote-debugging-port=9333`), set `WEB_CLI_PORT=9333`. web-cli then only
+connects to that port and never launches anything itself.
+
 Anything listening on `127.0.0.1:9222` can control the browser, including every
 logged-in session, so only run this on a machine you trust and never expose the
 port beyond localhost.
