@@ -6,12 +6,12 @@ from rich import box
 from rich.table import Table
 
 from ..cdp import open_target
-from ..discovery import list_targets, select_target
+from ..discovery import pick_target
 from ..output import console, die, emit_json
 
 
 async def run(args, conn):
-    target = select_target(await list_targets(conn), args.target_id, args.url)
+    target = await pick_target(conn, args)
     origin = _origin(target["url"])
     if not origin:
         die(f"Tab has no web origin to read storage from (url: {target['url']}).", 1)

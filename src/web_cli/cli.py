@@ -6,6 +6,7 @@ Data goes to stdout as JSON (or NDJSON for `listen`); errors go to stderr as
 
 import argparse
 import asyncio
+import os
 import sys
 
 import websockets
@@ -36,8 +37,14 @@ def _build_parser():
     fmt = _parser(add_help=False)
     fmt.add_argument("--json", action="store_true", help="emit JSON (uncolored, machine-readable)")
 
+    # Shared profile scope, inherited by tabs, open and every tab-selecting command.
+    prof = _parser(add_help=False)
+    prof.add_argument("--profile", default=os.environ.get("WEB_CLI_PROFILE") or None,
+                      help="Chrome profile: directory, or part of its name or email "
+                           "(default: $WEB_CLI_PROFILE, else any)")
+
     # Shared tab selectors, inherited by commands that act on a tab.
-    sel = _parser(add_help=False)
+    sel = _parser(add_help=False, parents=[prof])
     sel.add_argument("-t", "--target-id", help="target/tab id (exact or unique prefix)")
     sel.add_argument("--url", help="pick the first tab whose URL contains this substring")
 
@@ -49,9 +56,9 @@ def _build_parser():
         p.set_defaults(handler=handler)
         return p
 
-    command("tabs", tabs.run, "list page targets (tabs)", [fmt], aliases=["list"])
+    command("tabs", tabs.run, "list page targets (tabs)", [fmt, prof], aliases=["list"])
 
-    p = command("open", navigate.open_run, "open a new tab at a URL (backgrounded)", [fmt])
+    p = command("open", navigate.open_run, "open a new tab at a URL (backgrounded)", [fmt, prof])
     p.add_argument("address", metavar="url", help="URL to open in a new tab")
     p.add_argument("--foreground", action="store_true",
                    help="focus the new tab (default opens it in the background)")

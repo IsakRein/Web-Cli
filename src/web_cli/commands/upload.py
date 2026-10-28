@@ -17,7 +17,7 @@ import json
 from pathlib import Path
 
 from ..cdp import open_target
-from ..discovery import list_targets, select_target
+from ..discovery import pick_target
 from ..output import console, die, emit_json
 
 # Breadth-first through the document and every open shadow root.
@@ -41,7 +41,7 @@ async def run(args, conn):
         if not f.is_file():
             die(f"No such file: {f}", code=1)
 
-    target = select_target(await list_targets(conn), args.target_id, args.url)
+    target = await pick_target(conn, args)
     async with open_target(conn, target) as (session, sid):
         res = await session.send(
             "Runtime.evaluate",

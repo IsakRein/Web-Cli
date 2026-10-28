@@ -17,14 +17,14 @@ from urllib.parse import urlsplit
 from rich.text import Text
 
 from ..cdp import CDPError, open_target
-from ..discovery import list_targets, select_target
+from ..discovery import pick_target
 from ..output import console, emit_ndjson
 
 INLINE_CAP = 64 * 1024  # inline text bodies up to this size when not saving to disk
 
 
 async def run(args, conn):
-    target = select_target(await list_targets(conn), args.target_id, args.url)
+    target = await pick_target(conn, args)
     save_dir = os.path.expanduser(args.save_dir) if args.save_dir else None
     if save_dir:
         os.makedirs(save_dir, exist_ok=True)

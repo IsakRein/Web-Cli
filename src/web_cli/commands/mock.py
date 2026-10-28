@@ -37,13 +37,13 @@ from datetime import datetime
 from rich.text import Text
 
 from ..cdp import CDPError, open_target
-from ..discovery import list_targets, select_target
+from ..discovery import pick_target
 from ..output import console, die, emit_ndjson
 
 
 async def run(args, conn):
     hook = _load_hook(args.hook)
-    target = select_target(await list_targets(conn), args.target_id, args.url)
+    target = await pick_target(conn, args)
 
     if not args.json:
         stop = f"{args.duration}s" if args.duration else "Ctrl-C to stop"

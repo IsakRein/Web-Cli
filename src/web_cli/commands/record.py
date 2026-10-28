@@ -40,7 +40,7 @@ import tempfile
 from pathlib import Path
 
 from ..cdp import CDPError, open_target
-from ..discovery import list_targets, select_target
+from ..discovery import pick_target
 from ..output import console, die, emit_json
 
 # Even dimensions for yuv420p, whatever size the screencast frames come in.
@@ -58,7 +58,7 @@ _OFFSCREEN_INTERVAL = 0.15
 
 
 async def run(args, conn):
-    target = select_target(await list_targets(conn), args.target_id, args.url)
+    target = await pick_target(conn, args)
     out = Path(args.output or f"web-cli-{target['id'][:8].lower()}.mp4")
 
     cast_params = {

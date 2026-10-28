@@ -1,8 +1,9 @@
 """Read cookies for a tab, including HttpOnly (which document.cookie cannot see).
 
 Uses CDP Network.getCookies scoped to the tab. Pass --url to restrict to a URL;
---all-tabs switches to the browser-wide Storage.getCookies jar. Rich table by
-default, JSON with --json.
+--all-tabs switches to the whole cookie jar of the tab's profile
+(Network.getAllCookies: Storage.getCookies only ever reads the last-used
+profile's jar). Rich table by default, JSON with --json.
 """
 
 from rich import box
@@ -10,16 +11,16 @@ from rich.table import Table
 from rich.text import Text
 
 from ..cdp import open_target
-from ..discovery import list_targets, select_target
+from ..discovery import pick_target
 from ..output import console, emit_json
 
 
 async def run(args, conn):
-    target = select_target(await list_targets(conn), args.target_id, args.url)
+    target = await pick_target(conn, args)
     async with open_target(conn, target) as (session, sid):
         await session.send("Network.enable", session_id=sid)
         if getattr(args, "all_tabs", False):
-            res = await session.send("Storage.getCookies", session_id=sid)
+            res = await session.send("Network.getAllCookies", session_id=sid)
         elif args.url:
             res = await session.send(
                 "Network.getCookies", {"urls": [_full_url(args.url, target)]},

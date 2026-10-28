@@ -2,7 +2,8 @@
 
 `open`  — new tab at a URL (prints its id, so scripts can target it next).
           Background by default so automation never steals the user's focus;
-          --foreground opts back into focusing it.
+          --foreground opts back into focusing it. --profile picks the Chrome
+          profile (see discovery.py for how).
 `nav`   — point an existing tab at a URL and wait for load.
 `close` — close a tab.
 """
@@ -10,12 +11,14 @@
 import asyncio
 
 from ..cdp import open_target
-from ..discovery import close_target, list_targets, new_target, select_target
+from ..discovery import close_target, list_targets, new_target, pick_target, select_target
 from ..output import console, emit_json
 
 
 def _report(target, args):
     row = {"id": target["id"], "url": target.get("url", "")}
+    if target.get("profile"):
+        row["profile"] = target["profile"]
     if args.json:
         emit_json(row)
     else:
@@ -23,11 +26,12 @@ def _report(target, args):
 
 
 async def open_run(args, conn):
-    _report(await new_target(conn, args.address, background=not args.foreground), args)
+    target = await new_target(conn, args.address, not args.foreground, args.profile)
+    _report(target, args)
 
 
 async def nav_run(args, conn):
-    target = select_target(await list_targets(conn), args.target_id, args.url)
+    target = await pick_target(conn, args)
     async with open_target(conn, target) as (session, sid):
         await session.send("Page.enable", session_id=sid)
         await session.send("Page.navigate", {"url": args.address}, session_id=sid)
@@ -38,7 +42,7 @@ async def nav_run(args, conn):
 
 
 async def close_run(args, conn):
-    target = select_target(await list_targets(conn), args.target_id, args.url)
+    target = await pick_target(conn, args)
     await close_target(conn, target["id"])
     if args.json:
         emit_json({"closed": target["id"]})

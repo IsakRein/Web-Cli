@@ -1,12 +1,12 @@
 """Run JavaScript in a tab and print the returned value as JSON."""
 
 from ..cdp import open_target
-from ..discovery import list_targets, select_target
+from ..discovery import pick_target
 from ..output import console, die, emit_json
 
 
 async def run(args, conn):
-    target = select_target(await list_targets(conn), args.target_id, args.url)
+    target = await pick_target(conn, args)
     async with open_target(conn, target) as (session, sid):
         res = await session.send(
             "Runtime.evaluate",

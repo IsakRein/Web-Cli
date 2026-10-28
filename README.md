@@ -87,6 +87,7 @@ Commands act on the active (first) tab unless you pick one. Tab selectors go
 
 - `-t/--target-id <id>`: exact id or a unique prefix (from `web-cli tabs`)
 - `--url <substr>`: the tab whose URL contains the substring
+- `--profile <name>`: only tabs of that Chrome profile (see [Profiles](#profiles))
 
 Add `--json` to any command for machine-readable output: JSON for one-shot
 commands, NDJSON (one object per line) for the streaming ones.
@@ -112,12 +113,36 @@ commands, NDJSON (one object per line) for the streaming ones.
 
 ```bash
 web-cli tabs                                   # table of tabs
-web-cli tabs --json                            # [{id, title, url, active}]
+web-cli tabs --json                            # [{id, title, url, active, profile, profile_name}]
 web-cli open https://example.com               # background tab; prints {id, url}
 web-cli open --foreground https://example.com  # focus the new tab
+web-cli open --profile work https://sentry.io  # open it in the profile signed in there
 web-cli nav https://example.com --url old      # navigate the matching tab, wait for load
 web-cli close --url example
 ```
+
+### Profiles
+
+A Chrome with several profiles signed in keeps a separate cookie jar per
+profile, so a tab only has your login if it lives in the right one. `tabs`
+shows each tab's profile, and `--profile` scopes `tabs`, `open` and every
+tab-selecting command to one. It matches a profile directory (`Profile 2`), or
+a profile's name or email from Chrome's `Local State`: an exact match first,
+else a substring. `WEB_CLI_PROFILE` sets the default; without either, nothing
+changes. `-t` ignores the profile, since an id is already exact.
+
+```bash
+web-cli tabs --profile work
+web-cli eval --profile me@example.com --url github 'document.title'
+WEB_CLI_PROFILE=work web-cli cookies --url sentry
+```
+
+CDP can only create tabs in Chrome's last-used profile. For that one, `open
+--profile` stays a background tab. For another, web-cli runs the launcher
+again with `--profile-directory`: Chrome opens the tab in front in that
+profile's window and briefly comes forward, then focus is handed back to the
+app you were in. That profile is now the last-used one, so later opens there
+are background tabs again.
 
 ### Running JavaScript
 
@@ -172,7 +197,7 @@ event fires.
 ```bash
 web-cli cookies                       # cookies for the active tab, HttpOnly included
 web-cli cookies --url github
-web-cli cookies --all-tabs            # the whole browser cookie jar
+web-cli cookies --all-tabs            # the whole cookie jar of the tab's profile
 web-cli storage                       # localStorage + sessionStorage
 web-cli storage --type local
 ```

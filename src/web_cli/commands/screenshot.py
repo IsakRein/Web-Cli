@@ -14,7 +14,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ..cdp import CDPError, open_target
-from ..discovery import list_targets, select_target
+from ..discovery import pick_target
 from ..output import console, die, emit_json
 
 
@@ -24,7 +24,7 @@ def _default_path(target):
 
 
 async def run(args, conn):
-    target = select_target(await list_targets(conn), args.target_id, args.url)
+    target = await pick_target(conn, args)
     path = Path(args.output or _default_path(target))
 
     async with open_target(conn, target) as (session, sid):
